@@ -471,9 +471,9 @@ tbody tr:last-child td{border-bottom:none;}
 
   <div class="sidebar-foot">
     <div class="sync-status"><span class="sync-dot sync-off" id="syncDot"></span><span id="syncStatusText">Belum terhubung</span></div>
-    <button id="btnSyncSettings">
+    <button id="btnSyncNow">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-      Sinkronisasi Google Sheets
+      Sinkronkan Sekarang
     </button>
     Data tersimpan otomatis di perangkat ini (localStorage).
     <button id="btnReset">Hapus Semua Data</button>
@@ -872,34 +872,13 @@ tbody tr:last-child td{border-bottom:none;}
 
 <div class="toast-wrap" id="toastWrap"></div>
 
-<!-- ================= MODAL: SYNC GOOGLE SHEETS ================= -->
-<div class="modal-overlay" id="modalSync">
-  <div class="modal">
-    <div class="modal-head"><h3>Sinkronisasi Google Sheets</h3><button class="modal-close" data-close="modalSync">✕</button></div>
-    <div class="modal-body">
-      <div class="hint" style="margin-bottom:14px;line-height:1.6;">
-        Hubungkan aplikasi ke Google Sheets agar data yang sama bisa diakses dan diubah bersama dari ponsel Anda dan istri. Buat dulu Google Sheet + Apps Script Web App (langkah setup ada di chat), lalu tempel URL-nya di sini.
-      </div>
-      <div class="field">
-        <label>URL Web App Google Apps Script</label>
-        <input class="input" type="text" id="syncUrlInput" placeholder="https://script.google.com/macros/s/xxxx/exec">
-      </div>
-      <div class="hint">Gunakan URL persis yang sama di ponsel istri Anda agar keduanya membaca &amp; menulis data yang sama. Siapa pun yang punya URL ini bisa mengakses data, jadi jangan dibagikan ke luar keluarga.</div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" id="btnSyncNow">Sinkron Sekarang</button>
-      <button class="btn btn-primary" id="btnSaveSyncUrl">Simpan &amp; Sambungkan</button>
-    </div>
-  </div>
-</div>
-
 <script>
 /* =========================================================
    KAS KELUARGA — state, persistence, dan logic aplikasi
    ========================================================= */
 const STORAGE_KEY = 'kasKeluargaData_v1';
 const CATEGORY_IN = ['Gaji','Usaha/Bisnis','Hasil Sedekah Masuk','Hutang Diterima','Piutang Kembali','Lainnya (Pemasukan)'];
-const CATEGORY_OUT = ['Kebutuhan Pokok','Pendidikan','Kegiatan Keluarga','Arisan','Sedekah/Zakat/Infaq','Cicilan/Bayar Hutang','Transportasi','Kesehatan','Lainnya (Pengeluaran)'];
+const CATEGORY_OUT = ['Kebutuhan Pokok','Pendidikan','Belanja Online','Arisan','Sedekah/Zakat/Infaq','Cicilan/Bayar Hutang','Transportasi','Jajan','Kesehatan','Lainnya (Pengeluaran)'];
 
 let DB = loadDB();
 function loadDB(){
@@ -1792,10 +1771,12 @@ document.getElementById('btnReset').addEventListener('click', ()=>{
 /* =========================================================
    SYNC — Google Sheets (via Apps Script Web App)
    ========================================================= */
-const SYNC_URL_KEY = 'kasKeluargaSyncUrl_v1';
+// URL Web App Google Apps Script Anda ditempel di sini.
+// Pastikan URL berada di dalam tanda kutip tunggal (').
+const syncUrl = 'https://script.google.com/macros/s/AKfycbzzRuWPCcVh_9zZZysEOpv9-47KGpA3EDyiizhmrcCkejSZbgd406oZcs_473cWhI-A/exec';
+
 const SYNC_STAMP_KEY = 'kasKeluargaLastSync_v1';
-let syncUrl = localStorage.getItem(SYNC_URL_KEY) || '';
-let lastRemoteUpdatedAt = localStorage.getItem(SYNC_STAMP_KEY) || '';
+let lastRemoteUpdatedAt = localStorage.getItem(SYNC_STAMP_KEY) || '0';
 let syncPushTimer = null;
 let syncPullInterval = null;
 
@@ -1809,7 +1790,7 @@ function setSyncStatus(state, text){
 function nowClock(){ return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
 
 async function pushToSheet(){
-  if(!syncUrl) return;
+  if(!syncUrl || syncUrl.includes('MASUKKAN_URL')) return;
   try{
     setSyncStatus('busy','Menyimpan ke Sheets...');
     const res = await fetch(syncUrl, {
@@ -1829,12 +1810,12 @@ async function pushToSheet(){
   }
 }
 function queuePush(){
-  if(!syncUrl) return;
+  if(!syncUrl || syncUrl.includes('MASUKKAN_URL')) return;
   clearTimeout(syncPushTimer);
   syncPushTimer = setTimeout(pushToSheet, 900);
 }
 async function pullFromSheet(silent){
-  if(!syncUrl) return;
+  if(!syncUrl || syncUrl.includes('MASUKKAN_URL')) return;
   try{
     if(!silent) setSyncStatus('busy','Mengambil data terbaru...');
     const res = await fetch(syncUrl+'?t='+Date.now());
@@ -1860,26 +1841,8 @@ function startPullInterval(){
 }
 function stopPullInterval(){ clearInterval(syncPullInterval); }
 
-document.getElementById('btnSyncSettings').addEventListener('click', ()=>{
-  document.getElementById('syncUrlInput').value = syncUrl;
-  openModal('modalSync');
-});
-document.getElementById('btnSaveSyncUrl').addEventListener('click', ()=>{
-  const url = document.getElementById('syncUrlInput').value.trim();
-  syncUrl = url;
-  localStorage.setItem(SYNC_URL_KEY, syncUrl);
-  closeModal('modalSync');
-  if(syncUrl){
-    toast('Tersambung ke Google Sheets');
-    pullFromSheet();
-    startPullInterval();
-  } else {
-    setSyncStatus('off','Belum terhubung');
-    stopPullInterval();
-  }
-});
 document.getElementById('btnSyncNow').addEventListener('click', ()=>pullFromSheet(false));
-window.addEventListener('focus', ()=>{ if(syncUrl) pullFromSheet(true); });
+window.addEventListener('focus', ()=>{ if(syncUrl && !syncUrl.includes('MASUKKAN_URL')) pullFromSheet(true); });
 
 /* =========================================================
    INIT
@@ -1892,7 +1855,7 @@ populateCategorySelect(document.getElementById('txCategory'), 'in');
 ['txAmount','kgBudget','hpAmount','bayarAmount','rutinAmount'].forEach(id=>{
   attachThousandsFormatting(document.getElementById(id));
 });
-if(syncUrl){
+if(syncUrl && !syncUrl.includes('MASUKKAN_URL')){
   setSyncStatus('busy','Menghubungkan...');
   pullFromSheet().then(startPullInterval);
 } else {
