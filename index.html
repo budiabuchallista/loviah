@@ -912,21 +912,22 @@ function toRupiah(n){
   return (neg?'-':'')+'Rp '+s;
 }
 function parseAmountInput(str){
-  if(!str) return 0;
-  const cleaned = String(str).replace(/[^\d-]/g,'');
-  return parseInt(cleaned||'0',10) || 0;
+  // Hapus semua karakter kecuali digit dan tanda minus
+  const cleaned = String(str || '').replace(/[^\d-]/g, '');
+  return parseInt(cleaned, 10) || 0;
 }
 function formatThousands(str){
-  const digits = String(str).replace(/[^\d]/g,'');
+  // Hapus semua karakter non-digit
+  const digits = String(str).replace(/\D/g, '');
   if(!digits) return '';
   return parseInt(digits,10).toLocaleString('id-ID');
 }
 function attachThousandsFormatting(input){
-  input.addEventListener('input', ()=>{
-    const cursorFromEnd = input.value.length - input.selectionStart;
-    input.value = formatThousands(input.value);
-    const pos = Math.max(0, input.value.length - cursorFromEnd);
-    input.setSelectionRange(pos, pos);
+  input.addEventListener('input', (e) => {
+    const { target } = e;
+    const originalValue = target.value.replace(/\./g, ''); // Hapus titik yang ada
+    const formattedValue = formatThousands(originalValue);
+    target.value = formattedValue;
   });
 }
 function fmtDate(d){
@@ -1152,10 +1153,7 @@ function renderRutinPage(){
   }).join('');
 
   document.getElementById('rutinList').innerHTML = rows;
-  document.getElementById('rutinEmpty').style.display = list.length? 'none':'block';
-  document.querySelectorAll('.rutin-amount input').forEach(inp=>{
-    attachThousandsFormatting(inp);
-  });
+  document.getElementById('rutinEmpty').style.display = list.length ? 'none' : 'block';
 
   document.getElementById('rutinTotalAll').textContent = toRupiah(totalAll);
   document.getElementById('rutinTotalPaid').textContent = toRupiah(totalPaid);
@@ -1848,13 +1846,10 @@ window.addEventListener('focus', ()=>{ if(syncUrl && !syncUrl.includes('MASUKKAN
    INIT
    ========================================================= */
 document.getElementById('txDate').value = todayStr();
-document.getElementById('kgDate').value = todayStr();
+/* document.getElementById('kgDate').value = todayStr(); // Elemen ini tidak ada */
 document.getElementById('hpDate').value = todayStr();
 document.getElementById('bayarDate').value = todayStr();
 populateCategorySelect(document.getElementById('txCategory'), 'in');
-['txAmount','kgBudget','hpAmount','bayarAmount','rutinAmount'].forEach(id=>{
-  attachThousandsFormatting(document.getElementById(id));
-});
 if(syncUrl && !syncUrl.includes('MASUKKAN_URL')){
   setSyncStatus('busy','Menghubungkan...');
   pullFromSheet().then(startPullInterval);
@@ -1862,6 +1857,11 @@ if(syncUrl && !syncUrl.includes('MASUKKAN_URL')){
   setSyncStatus('off','Belum terhubung');
  }
  renderAll();
+
+ // Attach thousands formatting to all modal inputs on startup
+['txAmount', 'rutinAmount', 'hpAmount', 'bayarAmount'].forEach(id => {
+  attachThousandsFormatting(document.getElementById(id));
+});
 </script>
 <script type="module">
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
